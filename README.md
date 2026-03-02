@@ -152,7 +152,7 @@ conda install -c conda-forge mlflow lightgbm imbalanced-learn scikit-learn panda
 mlflow server --host 127.0.0.1 --port 5001
 
 # Terminal 2 — run the pipeline
-git clone https://github.com/candicechen/credit-risk-mlflow-pipeline.git
+git clone https://github.com/cyycan/credit-risk-mlflow-pipeline.git
 cd credit-risk-mlflow-pipeline
 
 # Add your data files
