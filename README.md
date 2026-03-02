@@ -206,4 +206,4 @@ Open **http://localhost:8080**, enable and trigger `credit_card_default_pipeline
 ## Author
 
 **Candice Chen** · Lead Data Scientist  
-[LinkedIn](https://linkedin.com/in/candicechen) · [GitHub](https://github.com/cyycan)
+[LinkedIn](https://linkedin.com/in/candiceyunchen) · [GitHub](https://github.com/cyycan)
