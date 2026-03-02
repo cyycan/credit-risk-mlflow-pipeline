@@ -1,0 +1,130 @@
+version: "3.8"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Credit Card Default Prediction — Airflow + MLflow Stack
+# ─────────────────────────────────────────────────────────────────────────────
+x-airflow-common: &airflow-common
+  image: apache/airflow:2.8.0
+  environment: &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR:                    LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN:        postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CORE__FERNET_KEY:                  ""
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    AIRFLOW__CORE__LOAD_EXAMPLES:               "false"
+    AIRFLOW__API__AUTH_BACKENDS:                "airflow.api.auth.backend.basic_auth"
+    MLFLOW_TRACKING_URI:                        http://mlflow:5000
+    DATA_DIR:                                   /opt/airflow/data
+    OUTPUT_DIR:                                 /opt/airflow/output
+    _PIP_ADDITIONAL_REQUIREMENTS:               >-
+      mlflow lightgbm imbalanced-learn scikit-learn pandas numpy scipy
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./logs:/opt/airflow/logs
+    - ./plugins:/opt/airflow/plugins
+    - ./data:/opt/airflow/data
+    - ./output:/opt/airflow/output
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+
+  # ── Metadata DB ────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER:     airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB:       airflow
+    volumes:
+      - postgres_db_volume:/var/lib/postgresql/data
+    healthcheck:
+      test:     ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries:  5
+    restart: always
+
+  # ── MLflow Tracking Server ─────────────────────────────────────────────────
+  mlflow:
+    image: python:3.10-slim
+    command: >
+      bash -c "pip install mlflow psycopg2-binary --quiet &&
+               mlflow server
+                 --backend-store-uri postgresql://mlflow:mlflow@mlflow-db/mlflow
+                 --default-artifact-root /mlflow/artifacts
+                 --host 0.0.0.0
+                 --port 5000"
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_artifacts:/mlflow/artifacts
+    depends_on:
+      mlflow-db:
+        condition: service_healthy
+    restart: always
+
+  mlflow-db:
+    image: postgres:13
+    environment:
+      POSTGRES_USER:     mlflow
+      POSTGRES_PASSWORD: mlflow
+      POSTGRES_DB:       mlflow
+    volumes:
+      - mlflow_db_volume:/var/lib/postgresql/data
+    healthcheck:
+      test:     ["CMD", "pg_isready", "-U", "mlflow"]
+      interval: 5s
+      retries:  5
+    restart: always
+
+  # ── Airflow DB Init ────────────────────────────────────────────────────────
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        mkdir -p /opt/airflow/{logs,dags,plugins,data,output}
+        airflow db init
+        airflow users create \
+          --username admin \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@example.com \
+          --password admin
+        echo "Airflow initialised."
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_UPGRADE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+
+  # ── Airflow Webserver ──────────────────────────────────────────────────────
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test:     ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 10s
+      timeout:  10s
+      retries:  5
+    restart: always
+
+  # ── Airflow Scheduler ──────────────────────────────────────────────────────
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    healthcheck:
+      test:     ["CMD-SHELL", 'airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}"']
+      interval: 10s
+      timeout:  10s
+      retries:  5
+    restart: always
+
+volumes:
+  postgres_db_volume:
+  mlflow_db_volume:
+  mlflow_artifacts:
