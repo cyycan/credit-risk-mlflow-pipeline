@@ -197,6 +197,7 @@ Open **http://localhost:8080**, enable and trigger `credit_card_default_pipeline
 
 - Hyperparameter tuning with Optuna + MLflow autologging
 - Feature importance analysis and SHAP explainability
+- Segmented model evaluation and add precision and recall curve and confusion matrix
 - Model monitoring for data drift post-deployment
 - CI/CD pipeline with GitHub Actions to retrain on schedule
 - Containerise with Docker for portable deployment
